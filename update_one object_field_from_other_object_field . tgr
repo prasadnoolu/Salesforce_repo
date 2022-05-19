@@ -1,0 +1,56 @@
+//Patient trigger
+
+trigger updater on Patient__c (after insert, after update)
+{
+    map<string, Patient__c> ObjMap = new map<string, Patient__c>();
+    
+    for(Patient__c obj: Trigger.new)
+    {
+        if (obj.Id!= Null)
+        {
+            ObjMap.put(obj.Id, obj);
+        }
+        
+    }
+    
+    List<Case__c> cases = [SELECT Patient__c FROM Case__c WHERE Patient__c IN :ObjMap.KeySet()];
+    List<Case__c> caseUpdateList = new List<Case__c>();
+    
+    for(Case__c c: cases)
+    {
+    	Patient__c obj = ObjMap.get(c.Patient__c);
+        c.Phone__c = obj.Phone_Number__c;
+        c.Email__c = obj.Email__c;
+        caseUpdateList.add(c);
+    }
+    
+  update caseUpdateList;
+    
+}
+
+// Case Trigger
+trigger Mytrigger on Case__c (before insert, before update) {  
+    Set<Id> setConIds = new Set<Id>();
+    for (Case__c  obj : trigger.new) {
+        if (obj.Patient__c != null) {
+            setConIds.add(obj.Patient__c);
+        }
+    }
+
+    Map<Id, Patient__c> mapCon = new Map<Id, Patient__c>([Select Id, Email__c, Phone_Number__c from Patient__c where id in: setConIds]);
+
+        for (Case__c obj : trigger.new) {
+        if (obj.Patient__c != null) {
+            if (mapCon.containsKey(obj.Patient__c))
+            {
+                Patient__c c = mapCon.get(obj.Patient__c);
+                  obj.Email__c = c.Email__c;
+                  obj.Phone__c = c.Phone_Number__c;  
+                
+            }
+        }
+            
+    }
+   
+      
+  }
