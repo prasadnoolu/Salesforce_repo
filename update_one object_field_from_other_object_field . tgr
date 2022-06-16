@@ -54,3 +54,6 @@ trigger Mytrigger on Case__c (before insert, before update) {
    
       
   }
+  
+  SELECT Id, Subject, Associated_Hub_Patient__c, MNK_Patient_Id__c, MNK_Patient_Id__r.MNK_Master_Patient__c, MNK_UBC_Status__c FROM case WHERE Subject LIKE '%SP%' AND MNK_UBC_Status__c In ('Active', 'Pending') AND  Current_Status_Reason_Description__c != null AND Associated_Hub_Patient__c != null LIMIT 10
+  
