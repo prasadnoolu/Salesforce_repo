@@ -57,3 +57,34 @@ trigger Mytrigger on Case__c (before insert, before update) {
   
   SELECT Id, Subject, Associated_Hub_Patient__c, MNK_Patient_Id__c, MNK_Patient_Id__r.MNK_Master_Patient__c, MNK_UBC_Status__c FROM case WHERE Subject LIKE '%SP%' AND MNK_UBC_Status__c In ('Active', 'Pending') AND  Current_Status_Reason_Description__c != null AND Associated_Hub_Patient__c != null LIMIT 10
   
+global class SPCleanupAssociatedHubCasesBatch implements Database.Batchable<sObject>, Schedulable {
+    global void execute(SchedulableContext sc){ 
+        SPCleanupAssociatedHubCasesBatch objSPCleanupAssociatedHubCasesBatch = new  SPCleanupAssociatedHubCasesBatch();
+        database.executebatch(objSPCleanupAssociatedHubCasesBatch);
+    }
+    global SPCleanupAssociatedHubCasesBatch() {
+        
+    }
+    global Database.QueryLocator start(Database.BatchableContext BC){
+        String query = 'SELECT Id, Subject, Associated_Hub_Patient__c, MNK_Patient_Id__c, MNK_Patient_Id__r.MNK_Master_Patient__c FROM Case WHERE (Subject LIKE \'%SP%\' OR Referral_Source__c = \'DIRECT\')';
+        return Database.getQueryLocator(query);
+    }
+    global void execute(Database.BatchableContext BC, List<Case> scope){
+        List<Case> forUpdation = new List<Case>();
+        Map<String, String> masterPatients = new Map<String, String>();
+        
+        List<MNK_Patient_Case_ID__c> hubPatients = [SELECT Id, MNK_Master_Patient__c FROM MNK_Patient_Case_ID__c WHERE MNK_Closed_Cases__c <> null AND MNK_Number_of_Cases__c <> null AND RecordType.Name = 'Hub Patient' AND MNK_Master_Patient__c <> null];
+        for (MNK_Patient_Case_ID__c pat : hubPatients) {
+            masterPatients.put(pat.MNK_Master_Patient__c, pat.id);
+        }
+        for(Case c : scope) {
+            if(masterPatients.containsKey(c.MNK_Patient_Id__r.MNK_Master_Patient__c)) {
+                c.Associated_Hub_Patient__c= masterPatients.get(c.MNK_Patient_Id__r.MNK_Master_Patient__c);
+                forUpdation.add(c);
+            }
+        }
+        update(forUpdation);
+    }
+    global void finish(Database.BatchableContext BC){
+    }
+}
