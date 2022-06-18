@@ -88,3 +88,38 @@ global class SPCleanupAssociatedHubCasesBatch implements Database.Batchable<sObj
     global void finish(Database.BatchableContext BC){
     }
 }
+
+
+// check update after 5 days
+global class BatchUpdateStatus implements Database.Batchable<sObject>, Schedulable {
+    global void execute(SchedulableContext sc){ 
+        BatchUpdateStatus objSPHubCasesBatch = new  BatchUpdateStatus();
+        database.executebatch(objSPHubCasesBatch);
+    }
+    global BatchUpdateStatus() {
+        
+    }
+    global Database.QueryLocator start(Database.BatchableContext BC){
+        String query = 'SELECT Id, Subject, Associated_Hub_Patient__c, MNK_Patient_Id__c, MNK_Patient_Id__r.MNK_Master_Patient__c, MNK_UBC_Status__c, Current_Status_Reason_Description_Date__c  FROM case WHERE Subject LIKE \'%SP%\' AND MNK_UBC_Status__c In (\'Active\', \'Pending\') AND  Current_Status_Reason_Description__c != null AND Associated_Hub_Patient__c != null AND Current_Status_Reason_Description_Date__c  != LAST_N_DAYS:4 and Current_Status_Reason_Description_Date__c  = LAST_N_DAYS:5 LIMIT 10';
+        return Database.getQueryLocator(query);
+    }
+    global void execute(Database.BatchableContext BC, List<Case> scope){
+        List<Case> UPS = new List<Case>();
+        Map<String, String> masterPatients = new Map<String, String>();
+        
+        List<MNK_Patient_Case_ID__c> hubPatients = [SELECT Id, MNK_Master_Patient__c FROM MNK_Patient_Case_ID__c WHERE  Patient_Status__c In ('Active','Pending') AND RecordType.Name = 'Hub Patient' AND MNK_Master_Patient__c <> null];
+        for (MNK_Patient_Case_ID__c pat : hubPatients) {
+            masterPatients.put(pat.MNK_Master_Patient__c, pat.id);
+        }
+        for(Case c : scope) {
+            if(masterPatients.containsKey(c.MNK_Patient_Id__r.MNK_Master_Patient__c)) {
+                c.Associated_Hub_Patient__c= masterPatients.get(c.MNK_Patient_Id__r.MNK_Master_Patient__c);
+                System.debug('Detected : '+ c.Associated_Hub_Patient__c);
+                UPS.add(c);
+            }
+        }
+        update(UPS);
+    }
+    global void finish(Database.BatchableContext BC){
+    }
+}
